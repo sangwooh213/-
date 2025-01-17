@@ -1,0 +1,72 @@
+nonhyeontreatment <- read.csv("nonhyeon_treatmentpanel.csv", stringsAsFactors = FALSE) %>%
+  filter(STNDD_YR == 2022)
+
+nonhyuntreatment <- vect(nonhyeontreatment, geom = c("GPS_LOT", "GPS_LAT"), crs = "EPSG:5179")
+
+# Load and filter the control data (2022)
+nonhyeoncontrol <- read.csv("nonhyeon_controlpanel.csv", stringsAsFactors = FALSE) %>%
+  filter(STNDD_YR == 2022)
+
+nonhyeoncontrol <- vect(nonhyeoncontrol, geom = c("GPS_LOT", "GPS_LAT"), crs = "EPSG:5179")
+
+# Load the shapefile
+sk <- vect("nonhyeon_5179.shp", crs = "EPSG:5179")
+
+# Ensure both datasets are in the same CRS
+sk <- project(sk, crs(nonhyuntreatment))
+
+# Convert terra objects to sf for Leaflet compatibility
+nonhyuntreatment_sf <- st_as_sf(nonhyuntreatment)
+nonhyeoncontrol_sf <- st_as_sf(nonhyeoncontrol)
+sk_sf <- st_as_sf(sk)
+
+# Transform CRS to WGS84 (EPSG:4326) for Leaflet
+nonhyuntreatment_sf <- st_transform(nonhyuntreatment_sf, crs = 4326)
+nonhyeoncontrol_sf <- st_transform(nonhyeoncontrol_sf, crs = 4326)
+sk_sf <- st_transform(sk_sf, crs = 4326)
+
+# Extract Longitude and Latitude from geometry
+nonhyuntreatment_sf <- nonhyuntreatment_sf %>%
+  mutate(
+    lon = st_coordinates(geometry)[, 1],
+    lat = st_coordinates(geometry)[, 2]
+  )
+
+nonhyeoncontrol_sf <- nonhyeoncontrol_sf %>%
+  mutate(
+    lon = st_coordinates(geometry)[, 1],
+    lat = st_coordinates(geometry)[, 2]
+  )
+
+# Create Leaflet Map
+leaflet_map <- leaflet() %>%
+  addTiles() %>%  # Add base OpenStreetMap tiles
+  addPolygons(data = sk_sf, 
+              color = "gray", 
+              weight = 1, 
+              opacity = 0.5, 
+              fillOpacity = 0.1,
+              popup = "Nonhyeon Area") %>%
+  # Add Treatment Points (Green)
+  addCircleMarkers(data = nonhyuntreatment_sf,
+                   lng = ~lon,
+                   lat = ~lat,
+                   color = "green",
+                   radius = 4,
+                   stroke = FALSE,
+                   fillOpacity = 0.8,
+                   popup = ~paste("Treatment<br>", "Lat:", lat, "<br>Lon:", lon)) %>%
+  # Add Control Points (Red)
+  addCircleMarkers(data = nonhyeoncontrol_sf,
+                   lng = ~lon,
+                   lat = ~lat,
+                   color = "red",
+                   radius = 4,
+                   stroke = FALSE,
+                   fillOpacity = 0.8,
+                   popup = ~paste("Control<br>", "Lat:", lat, "<br>Lon:", lon)) %>%
+  # Add Legend
+  addLegend(position = "topright",
+            colors = c("green", "red"),
+            labels = c("Treatment", "Control"),
+            title = "Group")
